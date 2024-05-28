@@ -76,6 +76,8 @@ export class ColorGridItemComponent implements Highlightable, FocusableOption {
 
   private _value?: string;
 
+  private _size ?: string;
+
   private readonly _colorGridSelect = inject(COLOR_GRID_SELECT, {
     optional: true,
   });
@@ -107,7 +109,13 @@ export class ColorGridItemComponent implements Highlightable, FocusableOption {
   }
 
   @Input()
-  public size: ColorGridItemSize = COLOR_GRID_ITEM_SIZES[0];
+  public get size(){
+    return this._size;
+  }
+  public set size(size){
+    this._size = size;
+  }
+  // public  size: ColorGridItemSize = COLOR_GRID_ITEM_SIZES[0];
 
   @HostBinding('attr.aria-selected')
   @Input({ transform: booleanAttribute })

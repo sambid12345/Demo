@@ -7,19 +7,22 @@ import {
   HostBinding,
   HostListener,
   Input,
+  InputSignal,
   NgZone,
   OnDestroy,
+  OnInit,
   Output,
   QueryList,
   ViewChildren,
   computed,
   inject,
+  input,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import {
-  COLOR_GRID_ITEMS,
+  // COLOR_GRID_ITEMS,
   COLOR_GRID_ITEM_SIZES,
   ColorGridItemSize,
   ColorGridItemComponent,
@@ -69,15 +72,23 @@ import { Subject, takeUntil } from 'rxjs';
   ],
 })
 export class ColorGridSelectComponent
-  implements ControlValueAccessor, ColorGridSelect, AfterViewInit, OnDestroy
+  implements ControlValueAccessor, ColorGridSelect, AfterViewInit, OnDestroy, OnInit
 {
+
+ 
   /** Emits when the list has been destroyed. */
   private readonly _destroyed = new Subject<void>();
 
-  private readonly _items = signal(COLOR_GRID_ITEMS);
-  private readonly _itemSize = signal<ColorGridItemSize>(
-    COLOR_GRID_ITEM_SIZES[0]
-  );
+  // private readonly _items = signal(COLOR_GRID_ITEMS);
+
+  readonly items = input<string[]>([]);
+
+  
+  // private readonly _itemSize = signal<ColorGridItemSize>(
+  //   COLOR_GRID_ITEM_SIZES[0]
+  // );
+
+  readonly itemSize = input<string>('');
 
   private readonly _el = inject(ElementRef<ColorGridSelectComponent>);
 
@@ -87,7 +98,7 @@ export class ColorGridSelectComponent
 
   private _keyManager!: FocusKeyManager<ColorGridItemComponent>;
 
-  private _value?: string | null | undefined = COLOR_GRID_ITEMS[0];
+  private _value?: string | null | undefined = this.items()[0];
 
   private _disabled = false;
   private _touched = false;
@@ -109,23 +120,23 @@ export class ColorGridSelectComponent
   @ViewChildren(ColorGridItemComponent)
   public colorItems!: QueryList<ColorGridItemComponent>;
 
-  @Input()
-  public set items(value) {
-    this._items.set(value);
-  }
+  // @Input()
+  // public set items(value) {colorItems
+  //   this._items.set(value);
+  // }
 
-  public get items() {
-    return this._items();
-  }
+  // public get items() {
+  //   return this._items();
+  // }
 
-  @Input()
-  public get itemSize(): ColorGridItemSize {
-    return this._itemSize();
-  }
+  // @Input()
+  // public get itemSize(): ColorGridItemSize {
+  //   return this._itemSize();
+  // }
 
-  public set itemSize(value: ColorGridItemSize) {
-    this._itemSize.set(value);
-  }
+  // public set itemSize(value: ColorGridItemSize) {
+  //   this._itemSize.set(value);
+  // }
 
   @Input()
   public get value(): string | null | undefined {
@@ -143,15 +154,42 @@ export class ColorGridSelectComponent
   @Output()
   public readonly valueChange = new EventEmitter<string | null | undefined>();
 
-  /** @todo logic to generate a grid of colors to allow navigation */
-  public readonly grid = computed((): string[][] => {
-    // Calculate the number of items that can be added per row
-    // The calculation will be based on the available width of the element width and itemSize
-    //   this._itemsPerRow = ...
-    //
+  public getScreenWidth: any;
 
-    return chunk(this._items(), this._itemsPerRow);
-  });
+  public cGrid: any = [];
+
+  gridItems!: string[][];
+
+  @HostListener('window:resize', ['$event'])
+  onWindowResize() {
+    this.getScreenWidth = window.innerWidth;
+    this.grid(window.innerWidth);
+    
+  }
+  ngOnInit(){
+    this.getScreenWidth = window.innerWidth;
+    this.grid(window.innerWidth);
+  }
+
+  public grid(availableWidth: number){
+    console.log('current width', availableWidth);
+    const ITEM_SIZE = this.itemSize() === 'small' ? 32: (this.itemSize() ==='medium' ? 40 : 48);
+    const itemsPerRow = Math.floor(availableWidth / ITEM_SIZE);
+    this._itemsPerRow = itemsPerRow;
+    this.gridItems =  chunk(this.items(), itemsPerRow);
+  }
+
+  /** @todo logic to generate a grid of colors to allow navigation */
+  // public readonly grid = computed((): string[][] => {
+  //   console.log('current width', this.getScreenWidth);
+  //   const availableWidth = this.getScreenWidth;
+  //   const ITEM_SIZE = this.itemSize() === 'small' ? 32: (this.itemSize() ==='medium' ? 40 : 48)
+  //   const itemsPerRow = Math.floor(availableWidth / ITEM_SIZE);
+    
+  //   console.log(chunk(this.items(), itemsPerRow));
+
+  //   return chunk(this.items(), itemsPerRow);
+  // });
 
   public get keyMan() {
     return this._keyManager;
@@ -242,17 +280,73 @@ export class ColorGridSelectComponent
    * The logic to decide how to navigate inside the grid when the
    * up, down, left and right buttons are pressed
    */
+ 
   @HostListener('keydown', ['$event'])
   private _onKeydown(event: KeyboardEvent) {
     switch (event.keyCode) {
-      case UP_ARROW:
-      case DOWN_ARROW:
-      case LEFT_ARROW:
-      case RIGHT_ARROW: {
-        // add logic
-        // ....
 
-        this._keyManager.onKeydown(event); // @fixme remove the following after the grid logic is implemented
+      case 37:{  // LEFT KEY
+        const currentIndex = this.colorItems.toArray().findIndex(item => item.value === this.value);
+        const previousItemIndex = currentIndex - 1;
+        const isStartOfRow = currentIndex % this._itemsPerRow === 0;
+
+        if (isStartOfRow && previousItemIndex >= 0) {
+          
+          this.emitChange(this.colorItems.toArray()[previousItemIndex].value);
+        } else if (previousItemIndex >= 0) {
+         
+          this.emitChange(this.colorItems.toArray()[previousItemIndex].value);
+        }
+        break;
+      }
+
+      case 38:{  // UP KEY
+
+        const currentIndex = this.colorItems.toArray().findIndex(item => item.value === this.value);
+        const currentRow = Math.floor(currentIndex / this._itemsPerRow);
+
+        let targetIndex = currentIndex - this._itemsPerRow;
+
+        if (currentRow === 0) {
+       
+          const no_of_rows = Math.ceil( this.colorItems.length / this._itemsPerRow );
+          const lastRowItemIndex = currentIndex + ((no_of_rows-1) * this._itemsPerRow);
+          if(lastRowItemIndex <= this.colorItems.length-1)
+            targetIndex = lastRowItemIndex;
+        }
+        if(targetIndex >=0 && targetIndex < this.colorItems.length){
+          this.emitChange(this.colorItems.toArray()[targetIndex]?.value);
+        }
+
+        break;
+      }
+
+      case 39: { // RIGHT KEY
+        const currentIndex = this.colorItems.toArray().findIndex(item => item.value === this.value);
+        const nextItemIndex = currentIndex + 1;
+        const isEndOfRow = nextItemIndex % this._itemsPerRow === 0; 
+
+        if (isEndOfRow && nextItemIndex < this.colorItems.length) {
+         
+          this.emitChange(this.colorItems.toArray()[nextItemIndex].value);
+        } else if (nextItemIndex < this.colorItems.length) {
+          
+          this.emitChange(this.colorItems.toArray()[nextItemIndex].value);
+        }
+ 
+        break;
+      }
+
+      case 40:{  //DOWN KEY
+        const currentIndex = this.colorItems.toArray().findIndex(item => item.value === this.value);
+        const nextRowItemIndex = currentIndex + this._itemsPerRow;
+        if (nextRowItemIndex < this.colorItems.length) {
+          this.emitChange(this.colorItems.toArray()[nextRowItemIndex].value);
+        } else {
+          const firstColumnItemIndex = currentIndex % this._itemsPerRow;
+          this.emitChange(this.colorItems.toArray()[firstColumnItemIndex].value);
+        }
+      
         break;
       }
     }
